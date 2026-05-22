@@ -1,16 +1,19 @@
 /*this for the search bar at the top of the page*/
-#search-bar{
+header {
   display: flex;
+  gap: 1rem;
   justify-content: center;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 
-#search-bar button{
-  margin-left: 10px;
-  padding : 2px;
+#search {
+  padding: 0.5rem;
+  width: 250px;
 }
-#search-bar input{
-padding-right:20%;
-text-align: left;
+
+#episode-selector {
+  padding: 0.5rem;
 }
 
 
