@@ -1,18 +1,40 @@
-//You can edit ALL of the code here
-const API_URL = "https://api.tvmaze.com/shows/82/episodes"; // api url constant at top of 
-// file
-
+// You can edit ALL of the code here
+const API_URL = "https://api.tvmaze.com/shows/82/episodes"; // (not used yet, fine to keep)
+const episodeCache = {};
 /**
  * Entry point for the app.
  * Fetches all episodes and renders them to the page.
  *
  * @return {void}
  */
-//You can edit ALL of the code here
-//You can edit ALL of the code here
-function setup() {
+async function setup() {
   const allEpisodes = getAllEpisodes();
 
+  const allShows = await fetchAllShows();
+
+  populateShowSelector(allShows);
+
+  const showSelector = document.getElementById("show-selector");
+
+  showSelector.addEventListener("change", async () => {
+    const showId = showSelector.value;
+
+    document.getElementById("root").innerHTML = "<p>Loading episodes...</p>";
+
+    const episodes = await fetchEpisodesForShow(showId);
+
+    document.getElementById("search").value = "";
+
+    setupSelector(episodes);
+
+    setupSearch(episodes);
+
+    makePageForEpisodes(episodes);
+
+    updateEpisodeCount(episodes.length, episodes.length);
+  });
+
+  // 4. Load initial episodes (Game of Thrones)
   makePageForEpisodes(allEpisodes);
   setupSearch(allEpisodes);
   setupSelector(allEpisodes);
@@ -177,7 +199,62 @@ function makePageForEpisodes(episodeList) {
   rootElem.appendChild(attribution);
 }
 
+async function fetchAllShows() {
+  try {
+    const response = await fetch("https://api.tvmaze.com/shows");
+    if (!response.ok) {
+      throw new Error("Failed to load shows");
+    }
+
+    const shows = await response.json();
+
+    // Sort alphabetically
+    shows.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    );
+
+    return shows;
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+}
+
+function populateShowSelector(shows) {
+  const showSelector = document.getElementById("show-selector");
+  showSelector.innerHTML = "";
+
+  shows.forEach((show) => {
+    const option = document.createElement("option");
+    option.value = show.id;
+    option.textContent = show.name;
+    showSelector.appendChild(option);
+  });
+}
+
+async function fetchEpisodesForShow(showId) {
+  if (episodeCache[showId]) {
+    return episodeCache[showId];
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.tvmaze.com/shows/${showId}/episodes`,
+    );
+    if (!response.ok) {
+      throw new Error("Failed to load episodes");
+    }
+
+    const episodes = await response.json();
+
+    // 3. Save to cache
+    episodeCache[showId] = episodes;
+
+    return episodes;
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+}
+
 window.onload = setup;
-
-
-
