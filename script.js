@@ -1,6 +1,6 @@
 // You can edit ALL of the code here
 const episodeCache = {};
-const allShowsCache = null; // level 500 -> caches /shows to avoid fetching the same data multiple times if setup() is called again for any reason
+let allShowsCache = null; // level 500 -> caches /shows to avoid fetching the same data multiple times if setup() is called again for any reason
 
 /**
  * Entry point for the app.
