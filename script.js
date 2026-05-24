@@ -248,7 +248,13 @@ function makePageForShows(shows) {
     grid.appendChild(card);
   });
 
+  // TVMaze licensing requires attribution when using their data
+  const attribution = document.createElement("footer");
+  attribution.innerHTML = `Data originally from <a href="https://www.tvmaze.com/" target="_blank">TVMaze.com</a>`;
+  attribution.className = "attribution";
+
   rootElem.appendChild(grid);
+  rootElem.appendChild(attribution);
 }
 
 /**
