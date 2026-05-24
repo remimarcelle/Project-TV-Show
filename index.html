@@ -11,12 +11,16 @@
     <script src="script.js" defer></script>
   </head>
 
+  <!-- add a back button to header, that is hidden by default and only shows when
+  an episode is selected. When clicked, it should hide the episode details and
+  show the list of episodes again. -->
   <body>
     <header>
+      <button id="back-to-shows" style="display: none">← Back to shows</button>
       <select id="show-selector"></select>
-      <input type="text" id="search" placeholder="Search episodes..." />
+      <input type="text" id="search" placeholder="Search shows..." />
       <span id="episode-count"></span>
-      <select id="episode-selector"></select>
+      <select id="episode-selector" style="display: none"></select>
     </header>
     <div id="root"></div>
   </body>
