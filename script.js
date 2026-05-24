@@ -1,32 +1,117 @@
-//You can edit ALL of the code here
-const API_URL = "https://api.tvmaze.com/shows/82/episodes"; // api url constant at top of 
-// file
+// You can edit ALL of the code here
+const episodeCache = {};
 
 /**
  * Entry point for the app.
- * Fetches all episodes and renders them to the page.
+ * Fetches all shows, populates the show selector, and loads the first show's episodes.
  *
+ * @return {Promise<void>}
+ */
+async function setup() {
+  const allShows = await fetchAllShows();
+  populateShowSelector(allShows);
+
+  const showSelector = document.getElementById("show-selector");
+
+  // Load the first show's episodes on initial page load
+  await loadEpisodesForShow(showSelector.value);
+
+  showSelector.addEventListener("change", async () => {
+    await loadEpisodesForShow(showSelector.value);
+  });
+}
+
+/**
+ * Fetches and renders all episodes for the given show.
+ * Resets the search input and rebuilds the episode selector + search handler.
+ *
+ * @param {string|number} showId - The TVMaze show id.
+ * @return {Promise<void>}
+ */
+async function loadEpisodesForShow(showId) {
+  document.getElementById("root").innerHTML = "<p>Loading episodes...</p>";
+  document.getElementById("search").value = "";
+
+  const episodes = await fetchEpisodesForShow(showId);
+
+  setupSelector(episodes);
+  setupSearch(episodes);
+  makePageForEpisodes(episodes);
+  updateEpisodeCount(episodes.length, episodes.length);
+}
+
+/**
+ * Updates the "Displaying X/Y episodes" counter in the header.
+ *
+ * @param {number} shown - Number of episodes currently visible.
+ * @param {number} total - Total number of episodes available.
  * @return {void}
  */
-function setup() {
-  const rootElem = document.getElementById("root"); // get root element
-  rootElem.textContent = "Loading episodes, please wait..."; // show loading message
+function updateEpisodeCount(shown, total) {
+  const countDisplay = document.getElementById("episode-count");
+  countDisplay.textContent = `Displaying ${shown}/${total} episodes`;
+}
 
-  fetch(API_URL) // fetch from API instead of getAllEpisodes
-    .then((response) => {
-      if (!response.ok) { // error handling
-        throw new Error(`HTTP was not ok: ${response.status}`);
-      }
-      return response.json(); // parse JSON
-    })
-    .then((episodes) => {
-      makePageForEpisodes(episodes); // render once data is ready
-    })
-    .catch((error) => { // show error message if fetch fails
-      rootElem.textContent = `Error loading episodes: 
-  ${error.message}`;
+/**
+ * Wires the search input to filter episodes by name or summary as the user types.
+ * Uses .oninput to replace any previous handler (prevents listener stacking on show change).
+ *
+ * @param {Array<Object>} allEpisodes - The full list of episodes for the current show.
+ * @return {void}
+ */
+function setupSearch(allEpisodes) {
+  const searchInput = document.getElementById("search");
+
+  searchInput.oninput = () => {
+    const term = searchInput.value.toLowerCase();
+    const filtered = allEpisodes.filter((ep) => {
+      const name = ep.name ? ep.name.toLowerCase() : "";
+      const summary = ep.summary ? ep.summary.toLowerCase() : "";
+      return name.includes(term) || summary.includes(term);
     });
+    makePageForEpisodes(filtered);
+    updateEpisodeCount(filtered.length, allEpisodes.length);
+  };
+}
 
+/**
+ * Populates the episode dropdown with "Show all" plus one option per episode,
+ * and wires the change handler to render the selected episode (or all).
+ * Clears any previous options first.
+ *
+ * @param {Array<Object>} allEpisodes - The full list of episodes for the current show.
+ * @return {void}
+ */
+function setupSelector(allEpisodes) {
+  const selector = document.getElementById("episode-selector");
+  selector.innerHTML = ""; // clear previous show's options
+
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "all";
+  defaultOption.textContent = "Show all episodes";
+  selector.appendChild(defaultOption);
+
+  allEpisodes.forEach((ep) => {
+    const option = document.createElement("option");
+    const code = formatEpisodeCode(ep.season, ep.number);
+    option.value = ep.id;
+    option.textContent = `${code} - ${ep.name}`;
+    selector.appendChild(option);
+  });
+
+  selector.onchange = () => {
+    if (selector.value === "all") {
+      makePageForEpisodes(allEpisodes);
+      updateEpisodeCount(allEpisodes.length, allEpisodes.length);
+      return;
+    }
+    const selectedId = Number(selector.value);
+    const selectedEpisode = allEpisodes.find((ep) => ep.id === selectedId);
+    if (selectedEpisode) {
+      makePageForEpisodes([selectedEpisode]);
+      updateEpisodeCount(1, allEpisodes.length);
+    }
+  };
 }
 
 /**
@@ -71,16 +156,17 @@ function makePageForEpisodes(episodeList) {
     card.className = "episode-card";
 
     const code = formatEpisodeCode(episode.season, episode.number);
+    const imgSrc = episode.image?.medium ?? "";
+    const summary = episode.summary ?? "";
 
     card.innerHTML = `
-      <img src="${episode.image?.medium ?? ""}" alt="${episode.name}" />
+      <img src="${imgSrc}" alt="${episode.name}" />
       <div class="episode-info">
         <h2>${episode.name}</h2>
         <p class="episode-code">${code}</p>
-        <div class="episode-summary">${episode.summary ?? ""}</div>
+        <div class="episode-summary">${summary}</div>
       </div>
     `;
-
     grid.appendChild(card);
   }
 
@@ -91,6 +177,70 @@ function makePageForEpisodes(episodeList) {
 
   rootElem.appendChild(grid);
   rootElem.appendChild(attribution);
+}
+
+/**
+ * Fetches the list of all shows from TVMaze and sorts them alphabetically by name.
+ *
+ * @return {Promise<Array<Object>>} Resolves with the sorted shows, or [] on failure.
+ */
+async function fetchAllShows() {
+  try {
+    const response = await fetch("https://api.tvmaze.com/shows");
+    if (!response.ok) {
+      throw new Error("Failed to load shows");
+    }
+    const shows = await response.json();
+    shows.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    );
+    return shows;
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+}
+
+/**
+ * Populates the show selector dropdown with one option per show.
+ *
+ * @param {Array<{ id: number, name: string }>} shows - Shows to display.
+ * @return {void}
+ */
+function populateShowSelector(shows) {
+  const showSelector = document.getElementById("show-selector");
+  showSelector.innerHTML = "";
+
+  shows.forEach((show) => {
+    const option = document.createElement("option");
+    option.value = show.id;
+    option.textContent = show.name;
+    showSelector.appendChild(option);
+  });
+}
+
+/**
+ * Fetches episodes for a given show, with in-memory caching to avoid repeat requests.
+ *
+ * @param {string|number} showId - The TVMaze show id.
+ * @return {Promise<Array<Object>>} Resolves with the show's episodes, or [] on failure.
+ */
+async function fetchEpisodesForShow(showId) {
+  if (episodeCache[showId]) {
+    return episodeCache[showId];
+  }
+  try {
+    const response = await fetch(`https://api.tvmaze.com/shows/${showId}/episodes`);
+    if (!response.ok) {
+      throw new Error("Failed to load episodes");
+    }
+    const episodes = await response.json();
+    episodeCache[showId] = episodes;
+    return episodes;
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
 }
 
 window.onload = setup;
