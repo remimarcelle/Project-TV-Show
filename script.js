@@ -1,9 +1,17 @@
 // You can edit ALL of the code here
 const episodeCache = {};
+const allShowsCache = null; // level 500 -> caches /shows to avoid fetching the same data multiple times if setup() is called again for any reason
 
 /**
  * Entry point for the app.
- * Fetches all shows, populates the show selector, and loads the first show's episodes.
+ * Fetches all shows, populates the show selector, wires the back button
+ * and show-selector change handler, then lands on the shows listing view.
+ *
+ * CHANGED from Level 400:
+ *  - No longer auto-loads the first show's episodes.
+ *  - Wires the new back-to-shows button.
+ *  - Show-selector change now drives showEpisodesView (was loadEpisodesForShow).
+ *  - Calls showShowsView() to render the new landing view.
  *
  * @return {Promise<void>}
  */
@@ -11,51 +19,112 @@ async function setup() {
   const allShows = await fetchAllShows();
   populateShowSelector(allShows);
 
-  const showSelector = document.getElementById("show-selector");
+   // back-to-shows click returns to the shows listing
+  document
+    .getElementById("back-to-shows")
+    .addEventListener("click", showShowsView);
 
-  // Load the first show's episodes on initial page load
-  await loadEpisodesForShow(showSelector.value);
-
-  showSelector.addEventListener("change", async () => {
-    await loadEpisodesForShow(showSelector.value);
+    // CHANGED: now calls showEpisodesView (which also toggles the view), not loadEpisodesForShow
+  document.getElementById("show-selector").addEventListener("change", (e) => {
+    showEpisodesView(e.target.value);
   });
+
+  // CHANGED: land on the shows listing instead of auto-loading episodes
+  showShowsView();
 }
 
 /**
- * Fetches and renders all episodes for the given show.
- * Resets the search input and rebuilds the episode selector + search handler.
+ * Renders the shows listing view.
+ * Resets the search, hides episode-only controls, wires the search input
+ * to filter shows.
+ *
+ * @return {Promise<void>}
+ */
+async function showShowsView() {
+  const allShows = await fetchAllShows(); // uses cache after the first call
+
+  document.getElementById("search").value = "";
+  document.getElementById("search").placeholder = "Search shows...";
+  document.getElementById("back-to-shows").style.display = "none";
+  document.getElementById("episode-selector").style.display = "none";
+  document.getElementById("show-selector").style.display = "inline-block";
+
+  makePageForShows(allShows);
+  setupShowSearch(allShows);
+  updateCountDisplay(allShows.length, allShows.length, "shows");
+}
+
+/**
+ * Renders the episodes view for the given show.
+ * Replaces Level 400's loadEpisodesForShow, with toggling view logic added
+ * (showing the back button, swapping search placeholder, syncing the dropdown).
  *
  * @param {string|number} showId - The TVMaze show id.
  * @return {Promise<void>}
  */
-async function loadEpisodesForShow(showId) {
+async function showEpisodesView(showId) {
   document.getElementById("root").innerHTML = "<p>Loading episodes...</p>";
   document.getElementById("search").value = "";
+  document.getElementById("search").placeholder = "Search episodes...";
+  document.getElementById("back-to-shows").style.display = "inline-block";
+  document.getElementById("episode-selector").style.display = "inline-block";
+  document.getElementById("show-selector").value = showId;
 
-  const episodes = await fetchEpisodesForShow(showId);
+  const episodes = await fetchEpisodesForShow(showId); // uses cache after first call
 
   setupSelector(episodes);
   setupSearch(episodes);
   makePageForEpisodes(episodes);
-  updateEpisodeCount(episodes.length, episodes.length);
+  updateCountDisplay(episodes.length, episodes.length, "episodes");
 }
 
 /**
  * Updates the "Displaying X/Y episodes" counter in the header.
+ * Generic so it works in both the shows view and the episodes view.
  *
- * @param {number} shown - Number of episodes currently visible.
- * @param {number} total - Total number of episodes available.
+ * @param {number} shown - Number of items currently visible.
+ * @param {number} total - Total items in the current dataset.
+ * @param {"shows"|"episodes"} label - Label suffix for the counter.
  * @return {void}
  */
-function updateEpisodeCount(shown, total) {
+function updateCountDisplay(shown, total, label) {
   const countDisplay = document.getElementById("episode-count");
-  countDisplay.textContent = `Displaying ${shown}/${total} episodes`;
+  countDisplay.textContent = `Displaying ${shown}/${total} ${label}`;
+}
+
+/**
+ * Filters the shows listing as the user types.
+ * Matches against name, genres, and summary (Level 500 requirement).
+ * Uses .oninput so re-wiring overwrites the prior handler.
+ *
+ * @param {Array<{ name: string, summary: string|null, genres: string[] }>} allShows
+ * @return {void}
+ */
+function setupShowSearch(allShows) {
+  const searchInput = document.getElementById("search");
+
+  searchInput.oninput = () => {
+    const term = searchInput.value.toLowerCase();
+    const filtered = allShows.filter((show) => {
+      const name = show.name.toLowerCase();
+      const summary = show.summary ? show.summary.toLowerCase() : "";
+      const genres = show.genres.join(" ").toLowerCase();
+      return (
+        name.includes(term) ||
+        summary.includes(term) ||
+        genres.includes(term)
+      );
+    });
+    makePageForShows(filtered);
+    updateCountDisplay(filtered.length, allShows.length, "shows");
+  };
 }
 
 /**
  * Wires the search input to filter episodes by name or summary as the user types.
  * Uses .oninput to replace any previous handler (prevents listener stacking on show change).
- *
+ * updateCountDisplay is called instead of updateEpisodeCount since this is generic and used for both shows and episodes search.
+ * "episodes" label is passed to updateCountDisplay since this search is only used in the episodes view, but could be parameterized if we wanted to reuse this function for shows search as well.
  * @param {Array<Object>} allEpisodes - The full list of episodes for the current show.
  * @return {void}
  */
@@ -70,7 +139,7 @@ function setupSearch(allEpisodes) {
       return name.includes(term) || summary.includes(term);
     });
     makePageForEpisodes(filtered);
-    updateEpisodeCount(filtered.length, allEpisodes.length);
+    updateCountDisplay(filtered.length, allEpisodes.length, "episodes");
   };
 }
 
@@ -78,6 +147,7 @@ function setupSearch(allEpisodes) {
  * Populates the episode dropdown with "Show all" plus one option per episode,
  * and wires the change handler to render the selected episode (or all).
  * Clears any previous options first.
+ * updateCountDisplay is called with the full episode count when "Show all" is selected, and with 1 when a specific episode is selected.
  *
  * @param {Array<Object>} allEpisodes - The full list of episodes for the current show.
  * @return {void}
@@ -102,14 +172,14 @@ function setupSelector(allEpisodes) {
   selector.onchange = () => {
     if (selector.value === "all") {
       makePageForEpisodes(allEpisodes);
-      updateEpisodeCount(allEpisodes.length, allEpisodes.length);
+      updateCountDisplay(allEpisodes.length, allEpisodes.length, "episodes");
       return;
     }
     const selectedId = Number(selector.value);
     const selectedEpisode = allEpisodes.find((ep) => ep.id === selectedId);
     if (selectedEpisode) {
       makePageForEpisodes([selectedEpisode]);
-      updateEpisodeCount(1, allEpisodes.length);
+      updateCountDisplay(1, allEpisodes.length, "episodes");
     }
   };
 }
@@ -128,6 +198,57 @@ function formatEpisodeCode(season, episode) {
   const s = String(season).padStart(2, "0");
   const e = String(episode).padStart(2, "0");
   return `S${s}E${e}`;
+}
+
+/**
+ * Renders a grid of show cards. Clicking a card drills into that show's episodes.
+ *
+ * @param {Array<{
+ *   id: number,
+ *   name: string,
+ *   summary: string|null,
+ *   genres: string[],
+ *   status: string,
+ *   rating: { average: number|null }|null,
+ *   runtime: number|null,
+ *   image: { medium: string }|null
+ * }>} shows - Shows from TVMaze.
+ * @return {void}
+ */
+function makePageForShows(shows) {
+  const rootElem = document.getElementById("root");
+  rootElem.innerHTML = "";
+
+  const grid = document.createElement("div");
+  grid.className = "show-grid";
+
+  shows.forEach((show) => {
+    const card = document.createElement("article");
+    card.className = "show-card";
+
+    const imgSrc = show.image?.medium ?? "";
+    const genres = show.genres.join(", ");
+    const rating = show.rating?.average ?? "N/A";
+    const runtime = show.runtime ?? "N/A";
+    const summary = show.summary ?? "";
+
+    card.innerHTML = `
+      <img src="${imgSrc}" alt="${show.name}" />
+      <div class="show-info">
+        <h2>${show.name}</h2>
+        <p><strong>Genres:</strong> ${genres}</p>
+        <p><strong>Status:</strong> ${show.status}</p>
+        <p><strong>Rating:</strong> ${rating}</p>
+        <p><strong>Runtime:</strong> ${runtime} min</p>
+        <div class="show-summary">${summary}</div>
+      </div>
+    `;
+
+    card.addEventListener("click", () => showEpisodesView(show.id));
+    grid.appendChild(card);
+  });
+
+  rootElem.appendChild(grid);
 }
 
 /**
@@ -180,11 +301,13 @@ function makePageForEpisodes(episodeList) {
 }
 
 /**
- * Fetches the list of all shows from TVMaze and sorts them alphabetically by name.
+  * Fetches all shows from TVMaze, sorted alphabetically by name.
+ * Cached so we only hit /shows once per visit (Level 500 requirement).
  *
  * @return {Promise<Array<Object>>} Resolves with the sorted shows, or [] on failure.
  */
 async function fetchAllShows() {
+    if (allShowsCache) return allShowsCache; // Level 500 — short-circuit on cache hit
   try {
     const response = await fetch("https://api.tvmaze.com/shows");
     if (!response.ok) {
@@ -194,6 +317,7 @@ async function fetchAllShows() {
     shows.sort((a, b) =>
       a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
     );
+    allShowsCache = shows; // Level 500 — store for next call
     return shows;
   } catch (error) {
     console.error(error);
