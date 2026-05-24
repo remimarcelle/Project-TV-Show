@@ -1,19 +1,16 @@
 /*this for the search bar at the top of the page*/
-header {
+#search-bar{
   display: flex;
-  gap: 1rem;
   justify-content: center;
-  align-items: center;
-  margin-bottom: 1rem;
 }
 
-#search {
-  padding: 0.5rem;
-  width: 250px;
+#search-bar button{
+  margin-left: 10px;
+  padding : 2px;
 }
-
-#episode-selector {
-  padding: 0.5rem;
+#search-bar input{
+padding-right:20%;
+text-align: left;
 }
 
 
@@ -89,82 +86,4 @@ body {
 
 .attribution a {
   color: #555;
-}
-
-/* === SHOWS GRID === */
-.show-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 20px;
-  padding: 20px;
-}
-
-/* === SHOW CARD === */
-.show-card {
-  background: #ffffff;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  cursor: pointer;
-}
-
-.show-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 6px 14px rgba(0,0,0,0.15);
-}
-
-/* === SHOW IMAGE === */
-.show-card img {
-  width: 100%;
-  height: 360px;
-  object-fit: cover;
-}
-
-/* === SHOW INFO === */
-.show-info {
-  padding: 15px;
-}
-
-.show-info h2 {
-  font-size: 1.3rem;
-  margin-bottom: 10px;
-  color: #333;
-}
-
-/* === SHOW DETAILS === */
-.show-info p {
-  margin: 5px 0;
-  font-size: 0.9rem;
-  color: #555;
-}
-
-.show-info strong {
-  color: #222;
-}
-
-/* === SHOW SUMMARY === */
-.show-summary {
-  margin-top: 10px;
-  font-size: 0.9rem;
-  color: #444;
-  line-height: 1.4;
-  max-height: 150px;
-  overflow: hidden;
-}
-
-#back-to-shows {
-  margin: 20px;
-  padding: 10px 16px;
-  font-size: 1rem;
-  background: #333;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  display: none; /* hidden by default */
-}
-
-#back-to-shows:hover {
-  background: #555;
 }
